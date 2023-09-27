@@ -1,62 +1,73 @@
 package main
 
 import (
-    "fmt"
-    "time"
-    "net/http"
-    "io"
-    "encoding/json"
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"time"
 )
 
 type ContentBlock struct {
-    ID        string `json:"id"`
-    Name      string `json:"name"`
-    CreatedAt string `json:"created_at"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	CreatedAt string `json:"created_at"`
 	Content   string `json:"content"`
 }
 
 func fetchUpdatedContent(lastRun time.Time, client *http.Client) ([]ContentBlock, error) {
-    apiEndpoint := "https://marketing-cloud-api-endpoint.com/content-blocks"
+	// Define the Content Builder API endpoint
+	apiEndpoint := "https://your-marketing-cloud-instance.rest.marketingcloudapis.com/asset/v1/content/assets/query"
 
-    req, err := http.NewRequest("GET", apiEndpoint, nil)
-    if err != nil {
-        return nil, err
-    }
+	// Create a JSON payload for the Content Builder API request
+	requestPayload := map[string]interface{}{
+		"query": map[string]interface{}{
+			"property":       "createdAt",
+			"simpleOperator": "greaterThanOrEqual",
+			"value":          lastRun.Format(time.RFC3339),
+		},
+	}
 
-    resp, err := client.Do(req)
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
+	requestBytes, err := json.Marshal(requestPayload)
+	if err != nil {
+		return nil, err
+	}
 
-    if resp.StatusCode != http.StatusOK {
-        return nil, fmt.Errorf("API request failed with status code %d", resp.StatusCode)
-    }
+	// Create an HTTP POST request to the Content Builder API
+	req, err := http.NewRequest("POST", apiEndpoint, bytes.NewBuffer(requestBytes))
+	if err != nil {
+		return nil, err
+	}
 
-    // Read the API response
-    body, err := io.ReadAll(resp.Body)
-    if err != nil {
-        return nil, err
-    }
+    salesforceTokenURL := os.Getenv("SALESFORCE_TOKEN_URL")
 
-    // Parse the JSON response
-    var contentBlocks []ContentBlock
-    if err := json.Unmarshal(body, &contentBlocks); err != nil {
-        return nil, err
-    }
 
-    // Filter content blocks based on the last run date
-    updatedContentBlocks := []ContentBlock{}
-    for _, block := range contentBlocks {
-        createdAt, err := time.Parse(time.RFC3339, block.CreatedAt)
-        if err != nil {
-            continue
-        }
+	req.Header.Set("Authorization", salesforceTokenURL)
+	req.Header.Set("Content-Type", "application/json")
 
-        if createdAt.After(lastRun) {
-            updatedContentBlocks = append(updatedContentBlocks, block)
-        }
-    }
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
 
-    return updatedContentBlocks, nil
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed with status code %d", resp.StatusCode)
+	}
+
+	// Read the API response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse the JSON response
+	var contentBlocks []ContentBlock
+	if err := json.Unmarshal(body, &contentBlocks); err != nil {
+		return nil, err
+	}
+
+	return contentBlocks, nil
 }

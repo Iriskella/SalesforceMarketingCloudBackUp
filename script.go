@@ -9,7 +9,6 @@ import (
 var lastUpdatedContentBlock string
 
 func main() {
-
     //Authenticate with Salesforce Marketing Cloud API
     client, err := getMarketingCloudClient()
     if err != nil {
